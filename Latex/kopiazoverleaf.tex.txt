@@ -1,0 +1,130 @@
+\documentclass[12pt, twoside, openany]{report}
+\usepackage[dvips]{graphicx,color,rotating}
+\usepackage[utf8]{inputenc}
+\usepackage{t1enc}
+\usepackage{a4wide}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{enumerate}
+\usepackage{verbatim}
+% \usepackage[MeX]{polski}
+\usepackage[unicode]{hyperref}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{left=25mm,right=25mm,%
+bindingoffset=10mm, top=25mm, bottom=25mm} 
+\usepackage{amssymb, latexsym}
+\usepackage{amsthm}
+\usepackage{palatino}
+\usepackage{array}
+\usepackage{pstricks}
+\usepackage{textcomp}
+\usepackage{polski}
+\theoremstyle{definition}
+\newtheorem{theorem}{Twierdzenie}[section]
+\newtheorem{remark}{Uwaga}[section]
+\newtheorem{definition}{Definicja}[section]
+\newtheorem{alg}{Algorytm}[chapter]
+\newtheorem{prz}{Przypadek}[section]
+\newtheorem{np}{Przyk³ad}[section]
+\newtheorem{lemma}[theorem]{Lemat}
+\linespread{1.5}
+\newcommand*{\norm}[1]{\left\Vert{#1}\right\Vert}
+\newcommand*{\abs}[1]{\left\vert{#1}\right\vert}
+\newcommand*{\om}{\omega}
+
+% \documentclass{article} 
+% \usepackage{polski}
+% \usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+% \usepackage{graphicx}
+\begin{document}
+
+\chapter{Pocz¹tkowe zapiski}
+
+\textbf{Algorytmy klasyfikacji danych w szeregach czasowych ultra-wysokiej czêstotliwoœci.}
+
+W pracy bêdê siê skupiaæ na przewidywaniu, w któr¹ stronê zmieni siê mid price, je¿eli wiemy, ¿e siê zmieni. Brak zmiany w midprice jest raczej rzadki (w aktualnych danych æwicz¹cych, których u¿ywam jest ich oko³o 15%.
+
+Na pocz¹tku poszukam odpowiedniej reprezentacji danych, ¿eby móc je sensownie pogrupowaæ.
+
+Pierwsza reprezentacja jest zwyczajnym zapisaniem ka¿dego LOBa w osobnej klasie "LOB". Klasa ta posiada listy ask (pary cena, iloœæ) i analogicznie bid. Dodatkowo ta klasa posiada midPrice dla danego LOBa.
+
+Kolejna reprezentacja to "tablica", która posiada w wierszach dla ka¿dego loba dla ka¿dego ticka sumê akcji. Niestety pe³no elementów w takiej tablicy to zera, wiêc ciê¿ko bêdzie je sklasyfikowaæ. 
+
+Kolejn¹ próba jest utworzenie mikstur gaussowskich dla ka¿dego loba (gmmList). 
+Aktualnie u¿ywam poprzez trochê ³opatologiczny sposób korzystaj¹c z \href{http://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html#sklearn.mixture.GaussianMixtur}{implementacji ze SciKit}),jednak je¿eli oka¿e siê ona skuteczna, sensownie bêdzie j¹ zaimplementowaæ. Odpalam j¹ z argumentami: n\_components=30, n\_init=10, covariance\_type="full", warm\_start = True, tol = 0.001. Dla n\_components=30 wygl¹da³o to najsensowniej, jednak pewnie warto by³oby porównaæ jakimiœ obliczeniami... na razie jednak zostawiê tak¹ reprezentacjê
+
+Przyk³ad wykresu (odciêtego do 0.1) dla gêstoœci jednej z mikstur (dla loba nr 5), poni¿ej histogram tego samego loba dla porównania.
+\includegraphics[width=\textwidth]{przykladowyWykresGausowski1}
+\includegraphics[width=\textwidth]{przykladowyWykresHistogram01}
+Rysunek nr 3 to ta sama gêstoœæ, jednak wykres obciêty do y = 0.01.
+\includegraphics[width=\textwidth]{przykladowyWykresGausowski01}
+
+Przy u¿yciu gmmList stworzy³em tablicaCalekPo1 - tablice przechowuj¹c¹ dla ka¿dego loba na parzystych indeksach kolejne ca³ki z gêstoœci o przedzia³ach równych 1 (aktualnie je liczê zwyczajn¹ metod¹ trapezów z epsilonem = 0.001) na prawo od mid price, a na nieparzystych na lewo od mid price. Wydaje siê, ¿e loby w takiej formie bêdzie doœæ ³atwo i sensownie sklasyfikowaæ.
+
+Analogicznie utworzy³em tablicê tablicaTickowPo1 - jak sama nazwa wskazuje, bêdzie to suma ticków na prawo i lewo od midPrice. 1 oznacza sumê iloœci ticków (czyli w sumie 10 ticków).
+
+Sensownie by³oby pewnie patrzeæ tylko na maks 100 wartoœci tych tablic na prawo i 100 na lewo.
+Dodatkowo mo¿na stworzyæ tablice z przedzia³ami rosn¹cymi, tzn. ka¿dy kolejny przedzia³ bêdzie o np. 1 wiêkszy - wydaje mi siê to sensowne, poniewa¿ im coœ jest dalej tym bardziej chce siê to wrzuciæ do jednego worka. Nazwa³em je tablicaCalekRosnaca, tablicaTickowRosnaca.
+
+Z wyników wychodzi, ¿e najlepszy potencja³ ma tablica ticków po 1.
+
+\clearpage
+\chapter{Wstêp}
+
+\section{Wprowadzenie}
+W wiêkszoœci nowoczesnych gie³d wykorzystuje siê tak zwany mechanizm \textbf{LOB} - limit order book (ograniczona ksiêga zleceñ ?? // to-do). Jest to spis zleceñ kupna (\textbf{BID}) i sprzeda¿y (\textbf{ASK}) akcji z³o¿onych przez klientów, z wy³¹czeniem tych ju¿ zrealizowanych lub anulowanych. LOB'y s¹ aktualizowane s¹ zazwyczaj przez okreœlony czas (np. czas otwarcia gie³dy) i co okreœlone odstêpy czasu - tzw. \textbf{tick}'i. Ka¿dy wiersz takiej ksiêgi zleceñ posiada listê ASK'ów i BID'ów, a ka¿dy pojedynczy element jest par¹ iloœci i ceny akcji. Transakcja jest dokonywana np. wtedy gdy ktoœ wystawi aukcje na sprzeda¿ po tañszej cenie ni¿ najlepsza (najwiêksza) cena kupna - \textbf{najlepszy BID}. \newline
+Na przyk³ad trzy najlepsze BID'y to (2000, 302), (40000, 301) i (200000, 300). Ktoœ dodaje ASK'a (10000, 300), tak wiêc kupuje on 2000 akcji po 302 i 8000 akcji po 301, nowy wiersz LOB'a zatem nie zawiera nawet tego ASK'a i o ile nie by³o innych zleceñ kupna lub sprzeda¿y, to nowe najlepsze dwa bidy przedstawiaj¹ siê w sposób: (32000, 301) i (200000, 300). Definicjê najlepszego BID'a ju¿ przedstawi³em, zaœ \textbf{najlepszym ASK}'iem nazwiemy najtañsz¹ ofertê sprzeda¿y, zaœ œredni¹ arytmetyczn¹ najlepszego BID'a i ASK'a nazwiemy mid-price - œredni¹ cen¹ (akcji). Nawet je¿eli ktoœ nie ma ¿adnego pojêcia o gie³dzie, to o cenie akcji musia³ s³yszeæ, a jest to w³aœnie mid-price.
+
+\begin{center}
+\begin{figure}[ht]
+\centering
+\includegraphics[width=300pt, height=250pt]{lobPicture.PNG}
+\caption{\footnotesize{Przyk³ad LOB'a.}}
+\end{figure}\end{center}
+
+
+\subsection{Cel}
+To w³aœnie mid-price jest g³ównym obiektem mojej pracy. Mo¿na zadaæ teraz pytanie, gdzie s¹ szeregi czasowe ultra wysokiej czêstotliwoœci z tematu? Otó¿ œrednia cena akcji zmienia siê prawie, ¿e z ka¿dym tick'iem, zaœ ka¿dy tick (na danych, które bêdê badaæ) trwa milisekundê. Tak wiêc co milisekundê dochodzi nowy wiersz do LOB'a z zazwyczaj innym mid-price'm. Nie bêdê jednak zastanawia³ siê czy po danym tick'u zmieni siê mid-price, tylko: je¿eli po danym tick'u zmieni siê mid-price, to czy uroœnie on czy zmaleje. Taka informacja jest niezwykle istotna dla specjalistów od rynków finansowych, jednak pomys³ na wykorzystanie uczenia maszynowego na LOB'ach do przewidywani kierunku mid-price jest doœæ œwie¿y i nie do koñca zbadany, dlatego te¿ warto mu siê przyjrzeæ. Wszelkie obliczenia bêdê wykonywa³ w python'ie 3.x.
+\newline\newline
+Plan pracy:
+\begin{enumerate}
+\item Przechowywanie danych (LOB'ów) na ró¿ne sposoby.
+\item Próba przewidywania kierunku zmiany na ró¿ne sposoby.
+\item Próba klasyfikacji LOB'ów.
+\item Przewidywanie mid-price za pomoc¹ po³¹czenia dwóch wczeœniejszych metod.
+\end{enumerate}
+
+\chapter{Reprezentacja LOB'ów}
+Przedstawiê teraz kilka reprezentacji LOB'ów, wszystkie przyk³ady bêd¹ dla danych NAZWA i wiersza numer NUMER// to-do
+
+\section{"Czyste" LOB'y}
+Pierwsz¹ i zarazem najprostsz¹ struktur¹ bêdzie klasa \textbf{LOBwiersz} bêd¹ca odzwierciedleniem wiersza LOB'a plus kilka niezbêdnych informacji, bêdzie posiada³a:
+\begin{enumerate}
+\item ask - lista par poszczególnych ASK'ów,
+\item bid - lista par poszczególnych BID'ów,
+\item dzien - dzieñ, w którym obowi¹zywa³ dany LOB,
+\item czas - czas, w którym obowi¹zywa³ dany LOB,
+\item zmiana - czy w nastêpnym wierszu LOB'a nast¹pi³a zmiana wzglêdem tego wiersza,
+\item midPrice - mid-price danego loba.
+\end{enumerate}
+Oczywiœcie jest to prosta struktura, jednak du¿o bardziej sensowna ni¿ surowe dane. Ca³y LOB ma odzwierciedlenie w liœcie LOBwiersz'ów.
+
+\begin{center}
+\begin{figure}[ht]
+\centering
+\includegraphics[width=500pt, height=300pt]{PrzykladDanychDlaListyLobow.png}
+\caption{\footnotesize{Przyk³ad LOB'a.}}
+\end{figure}\end{center}
+
+
+\begin{thebibliography}{11}
+\bibitem[1]{Skrot} Imie Nazwisko, \emph{Tytul}, Wydawnictwo, Miasto, rok.
+
+\end{thebibliography}
+\tableofcontents
+\clearpage
+\pagestyle{empty}
+
+\end{document}
